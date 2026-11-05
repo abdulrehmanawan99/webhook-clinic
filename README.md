@@ -2,6 +2,10 @@
 
 A local inspection desk for failed webhook deliveries. React + Vite/TypeScript, Express/TypeScript, MongoDB and Redis. Three synthetic failures cover an invalid signature, HTTP 503 and a delivery timeout. All analysis is **deterministic fixture reasoning**; no model or production provider is connected.
 
+This is the first working portfolio milestone, not full acceptance of the portfolio PRD. Live model-backed investigative reasoning and provider quality evaluation remain pending a suitable free API/key and capability checks.
+
+![Local inspection desk](docs/screenshots/desktop.png)
+
 ## Run locally
 
 Requires Node 22+ and Docker Compose. Use these dedicated loopback ports: UI **5174**, API **8011**, controlled receiver **9011**, MongoDB **27018**, Redis **6381**. Check that they are free first; do not stop unrelated applications.

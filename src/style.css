@@ -217,7 +217,7 @@ dd {
   font-size: 10px;
 }
 .index {
-  color: #748064;
+  color: #95a585;
   font:
     11px ui-monospace,
     monospace;
@@ -448,7 +448,7 @@ dd {
   padding: 5px 10px;
 }
 footer {
-  color: #59654e;
+  color: #8e9c80;
   display: flex;
   justify-content: space-between;
   padding: 24px 0;

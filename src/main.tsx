@@ -186,9 +186,13 @@ function App() {
               <div
                 className="tabs"
                 onKeyDown={(event) => {
-                  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                  if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
                     event.preventDefault();
-                    setTab(tab === "request" ? "response" : "request");
+                    const next = event.key === "Home" ? "request"
+                      : event.key === "End" ? "response"
+                      : tab === "request" ? "response" : "request";
+                    setTab(next);
+                    document.getElementById("evidence-tab-" + next)?.focus();
                   }
                 }}
                 role="tablist"
@@ -197,7 +201,10 @@ function App() {
                 {(["request", "response"] as const).map((t) => (
                   <button
                     role="tab"
+                    id={"evidence-tab-" + t}
+                    aria-controls="evidence-panel"
                     aria-selected={tab === t}
+                    tabIndex={tab === t ? 0 : -1}
                     key={t}
                     onClick={() => setTab(t)}
                   >
@@ -209,7 +216,7 @@ function App() {
                   ms budget
                 </span>
               </div>
-              <pre role="tabpanel" tabIndex={0}>
+              <pre role="tabpanel" id="evidence-panel" aria-labelledby={"evidence-tab-" + tab} tabIndex={0}>
                 {JSON.stringify(detail.delivery[tab], null, 2)}
               </pre>
               <section className="diagnostic">
