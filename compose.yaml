@@ -1,0 +1,21 @@
+name: webhook-clinic
+services:
+  mongo:
+    image: mongo:7
+    ports: ["127.0.0.1:27018:27017"]
+    volumes: ["clinic-mongo:/data/db"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6381:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  clinic-mongo:
