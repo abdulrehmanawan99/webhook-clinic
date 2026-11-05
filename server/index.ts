@@ -161,11 +161,9 @@ app.post("/api/deliveries/:id/replay", async (req, res, next) => {
       .strict()
       .parse(req.body);
     if (!(await db.collection("diagnoses").findOne({ deliveryId: id }))) {
-      res
-        .status(409)
-        .json({
-          error: "Run and review diagnostics before approving a replay.",
-        });
+      res.status(409).json({
+        error: "Run and review diagnostics before approving a replay.",
+      });
       return;
     }
     const existing = await audits.findOne(
@@ -261,12 +259,10 @@ app.post("/api/deliveries/:id/replay", async (req, res, next) => {
           },
         );
       }
-      res
-        .status(201)
-        .json({
-          audit: await audits.findOne({ replayId }, { projection: { _id: 0 } }),
-          deduplicated: false,
-        });
+      res.status(201).json({
+        audit: await audits.findOne({ replayId }, { projection: { _id: 0 } }),
+        deduplicated: false,
+      });
     } finally {
       await redis
         .eval(
@@ -287,24 +283,20 @@ app.use(
     _next: express.NextFunction,
   ) => {
     if (error instanceof z.ZodError) {
-      res
-        .status(400)
-        .json({
-          error: "Invalid request. Check fixture ID, pagination, and approval.",
-        });
+      res.status(400).json({
+        error: "Invalid request. Check fixture ID, pagination, and approval.",
+      });
       return;
     }
     const status = (error as { status?: number }).status;
-    res
-      .status(status === 413 ? 413 : status === 400 ? 400 : 503)
-      .json({
-        error:
-          status === 413
-            ? "Request too large."
-            : status === 400
-              ? "Malformed JSON."
-              : "Service unavailable. Check local MongoDB and Redis, then refresh.",
-      });
+    res.status(status === 413 ? 413 : status === 400 ? 400 : 503).json({
+      error:
+        status === 413
+          ? "Request too large."
+          : status === 400
+            ? "Malformed JSON."
+            : "Service unavailable. Check local MongoDB and Redis, then refresh.",
+    });
   },
 );
 const receiver = express();
