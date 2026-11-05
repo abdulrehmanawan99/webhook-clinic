@@ -2,6 +2,8 @@
 
 Verified locally on 2026-11-05 with Node 22.11.0 and Docker Compose 5.2.0.
 
+A minimal GitHub Actions workflow runs domain tests, the production build, and dependency audit on pull requests and pushes to main. Remote results are reported separately from the local checks below.
+
 - `docker compose up -d --wait`: MongoDB 7 and Redis 7 became healthy, using only this project's containers/volume and loopback ports 27018/6381.
 - `npm run build`: strict TypeScript check and Vite production build passed.
 - `npm test`: 3 domain tests passed: recursive fixture redaction; evidence-backed signature/status/deadline diagnostics with unchanged inputs; exact-byte HMAC validation and malformed signature rejection.
