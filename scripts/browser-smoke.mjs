@@ -22,7 +22,7 @@ try {
   const reproduce = page.getByRole("button", { name: /Reproduce locally/ });
   if (await reproduce.count()) await reproduce.click();
   await page.getByRole("button", { name: /Observation retained/ }).waitFor();
-  await expect(page.locator('option[value="gemini"]')).toBeDisabled();
+  await expect(page.locator('option[value="gemini"]')).toHaveJSProperty("disabled", true);
   const investigate = page.getByRole("button", { name: /Investigate fixture evidence/ });
   if (await investigate.isEnabled()) await investigate.click();
   await expect(page.locator(".investigation-result")).toContainText("FIXTURE · NO INFERENCE");
