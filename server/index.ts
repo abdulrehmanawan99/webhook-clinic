@@ -1,6 +1,6 @@
 import express from "express";
 import { MongoClient } from "mongodb";
-import { createClient, commandOptions } from "redis";
+import { createClient } from "redis";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
@@ -26,6 +26,7 @@ const mongo = new MongoClient(
 const redis = createClient({
   url: process.env.REDIS_URL ?? "redis://127.0.0.1:6381",
   disableOfflineQueue: true,
+  commandsQueueMaxLength: 128,
   socket: {
     connectTimeout: 3000,
     reconnectStrategy: (retries) => Math.min(100 + retries * 100, 1000),
@@ -34,6 +35,25 @@ const redis = createClient({
 redis.on("error", () =>
   console.error("Redis unavailable; replay coordination fails closed."),
 );
+// Redis 4 retains command abort listeners after completion. A later abort can
+// corrupt its queue and crash on disconnect. Bound the caller without passing
+// a signal into that driver, and always clear our timer after settlement.
+async function redisBound<T>(command: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      command,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Redis deadline exceeded")),
+          1000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 await mongo.connect();
 await redis.connect();
 const databaseName = z
@@ -85,7 +105,7 @@ app.use("/api", (req, res, next) => {
 app.get("/api/health", async (_req, res, next) => {
   try {
     await mongo.db().command({ ping: 1 });
-    await redis.ping(commandOptions({ signal: AbortSignal.timeout(1000) }));
+    await redisBound(redis.ping());
     res.json({ status: "ready", mode: "deterministic fixture" });
   } catch (e) {
     next(e);
@@ -331,12 +351,7 @@ app.post("/api/deliveries/:id/replay", async (req, res, next) => {
     const lockKey = `clinic:replay:${id}`;
     const owner = randomUUID();
     if (
-      !(await redis.set(
-        commandOptions({ signal: AbortSignal.timeout(1000) }),
-        lockKey,
-        owner,
-        { NX: true, PX: 10000 },
-      ))
+      !(await redisBound(redis.set(lockKey, owner, { NX: true, PX: 10000 })))
     ) {
       res
         .status(409)
@@ -425,13 +440,12 @@ app.post("/api/deliveries/:id/replay", async (req, res, next) => {
         deduplicated: false,
       });
     } finally {
-      await redis
-        .eval(
-          commandOptions({ signal: AbortSignal.timeout(1000) }),
+      await redisBound(
+        redis.eval(
           "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
           { keys: [lockKey], arguments: [owner] },
-        )
-        .catch(() => {});
+        ),
+      ).catch(() => {});
     }
   } catch (e) {
     next(e);

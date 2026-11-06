@@ -42,6 +42,8 @@ async function call(path: string, body?: unknown) {
 }
 async function ready() {
   for (let i = 0; i < 80; i++) {
+    if (child && child.exitCode !== null)
+      throw new Error(`Test app exited with code ${child.exitCode}`);
     try {
       if ((await call("/health")).status === 200) return;
     } catch {}
@@ -50,6 +52,7 @@ async function ready() {
   throw new Error("Test app did not become ready");
 }
 async function start(mode: string) {
+  console.log(`SCENARIO: starting receiver mode ${mode}`);
   child = spawn(process.execPath, ["--import", "tsx", "server/index.ts"], {
     env: {
       ...process.env,
@@ -59,9 +62,13 @@ async function start(mode: string) {
       GEMINI_API_KEY: "",
       GEMINI_FREE_TIER_CONFIRMED: "false",
     },
-    stdio: "ignore",
+    stdio: ["ignore", "inherit", "inherit"],
   });
+  child.on("exit", (code, signal) =>
+    console.log(`SCENARIO: app exited (code=${code}, signal=${signal})`),
+  );
   await ready();
+  console.log("SCENARIO: app ready");
 }
 async function stop() {
   if (!child || child.exitCode !== null) return;
@@ -73,6 +80,7 @@ async function stop() {
   child = undefined;
 }
 async function docker(...args: string[]) {
+  console.log(`SCENARIO: docker compose ${args.join(" ")}`);
   await exec("docker", ["compose", ...args], {
     timeout: 45000,
     maxBuffer: 100000,
@@ -88,6 +96,7 @@ try {
   await mongo.connect();
   await start("timeout");
   const db = mongo.db(database);
+  console.log("SCENARIO: replay timeout and deduplication");
   await call("/deliveries/evt_signature/diagnose", {});
   const timeout = await call("/deliveries/evt_signature/replay", {
     approval: "REPLAY LOCAL FIXTURE",
@@ -106,6 +115,7 @@ try {
     1,
   );
   // Simulate the durable checkpoint left by termination immediately after approval insert.
+  console.log("SCENARIO: retained approval checkpoint");
   await call("/deliveries/evt_status/diagnose", {});
   const crashId = randomUUID();
   await db.collection("replay_audits").insertOne({
@@ -130,6 +140,7 @@ try {
     0,
   );
   await call("/deliveries/evt_timeout/diagnose", {});
+  console.log("SCENARIO: Redis outage before replay");
   await docker("stop", "redis");
   const startTime = performance.now();
   const offline = await call("/deliveries/evt_timeout/replay", {
@@ -145,6 +156,7 @@ try {
   );
   await docker("up", "-d", "--wait", "redis");
   await ready();
+  console.log("SCENARIO: Mongo outage and recovery");
   await docker("stop", "mongo");
   const unavailable = await call("/deliveries/evt_signature");
   assert.equal(unavailable.status, 503);
@@ -152,6 +164,7 @@ try {
   await ready();
   await stop();
   await start("redirect");
+  console.log("SCENARIO: redirect rejection and checkpoint after restart");
   const redirect = await call("/deliveries/evt_timeout/replay", {
     approval: "REPLAY LOCAL FIXTURE",
   });
