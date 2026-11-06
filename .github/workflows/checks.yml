@@ -19,6 +19,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm audit --audit-level=high
+      - run: npx playwright install --with-deps chromium
       - name: Real local workflow and failure scenarios
         env:
           GEMINI_API_KEY: ""
@@ -26,9 +27,14 @@ jobs:
         run: |
           set -euo pipefail
           docker compose up -d --wait
+          web_pid=''
           node --import tsx server/index.ts > clinic-test.log 2>&1 &
           clinic_pid=$!
           cleanup() {
+            if [ -n "${web_pid:-}" ]; then
+              kill "$web_pid" 2>/dev/null || true
+              wait "$web_pid" 2>/dev/null || true
+            fi
             if [ -n "${clinic_pid:-}" ]; then
               kill "$clinic_pid" 2>/dev/null || true
               wait "$clinic_pid" 2>/dev/null || true
@@ -48,7 +54,23 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:8011/api/health
           npm run test:integration
+          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5174 --strictPort > clinic-web-test.log 2>&1 &
+          web_pid=$!
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5174 > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:browser
+          kill "$web_pid"
+          wait "$web_pid" || true
+          web_pid=''
           kill "$clinic_pid"
           wait "$clinic_pid"
           clinic_pid=''
           npm run test:scenarios
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: browser-evidence
+          path: .local/browser
+          if-no-files-found: ignore
