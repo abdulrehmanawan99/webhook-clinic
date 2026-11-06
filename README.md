@@ -22,7 +22,10 @@ Defaults work without an env file. `.env.example` documents optional overrides. 
 
 ```sh
 npm run build             # strict type check + UI bundle
-npm test                  # domain, provider contract and fixture evaluation; offline
+npm test                  # domain, provider/scoring regressions; offline
+npm run evaluate          # rescore persisted live baseline; no inference
+npm run check:secrets     # bounded tracked-text + frontend-bundle pattern check
+npm run licenses          # offline locked/installed dependency inventory
 npm run test:integration  # running app + local MongoDB required; retains audit
 npm run test:scenarios    # app ports FREE; starts isolated app; briefly stops project DB/cache
 npm audit
@@ -40,6 +43,6 @@ npm audit
 - Redis holds a short replay coordination lock. MongoDB unique indexes enforce one audit per delivery and one receiver receipt per correlation ID. Redis is coordination, never the durable source of truth.
 - Each fixture allows one retained attempt, including failure or uncertain acknowledgement. This deliberate limit avoids accidental duplicate delivery. A process crash after approval can leave a pending audit; inspect it rather than replaying automatically.
 
-See [architecture and threat boundaries](docs/architecture.md) and [actual verification](docs/verification.md). This is a trusted-machine portfolio demo with no accounts, production credentials, arbitrary destinations or background workers. The optional live investigator sends only retained synthetic diagnostic findings to the fixed Gemini API endpoint.
+See [frozen evaluation gates](docs/evaluation.md), [release review](docs/release-review.md), [third-party attribution](docs/third-party.md), [architecture and threat boundaries](docs/architecture.md) and [actual verification](docs/verification.md). This is a trusted-machine portfolio demo with no accounts, production credentials, arbitrary destinations or background workers. The optional live investigator sends only retained synthetic diagnostic findings to the fixed Gemini API endpoint.
 
 Storage namespace `webhook_clinic_v2` identifies the revised capture schema, not a product release. Earlier `webhook_clinic` deliveries and audits are preserved untouched. No migration silently rewrites immutable evidence.

@@ -9,6 +9,18 @@ One Express process owns the Clinic API and a second, bundled receiver listener.
 3. A POST with the exact approval literal creates a durable audit before network work. MongoDB uniqueness fences races even after Redis expiry/restart. The audit correlation UUID accompanies the new signed request.
 4. Receiver validates HMAC over exact bytes, fixture ID and pre-existing approval audit; its unique correlation receipt prevents duplicate processing. It does not store incoming payload or headers. The sender records status and bounded generic result, not arbitrary response bodies.
 
+```mermaid
+flowchart LR
+  Receiver[Bundled synthetic receiver] --> Capture[Exact-byte verification and redacted capture]
+  Capture --> Delivery[(Immutable Mongo delivery)]
+  Delivery --> Rules[Three deterministic diagnostics]
+  Rules --> Selection[Fixture or bounded Gemini evidence selection]
+  Selection --> Review[Human evidence review and explicit approval]
+  Review --> Fence[Redis coordination and unique Mongo audit]
+  Fence --> Local[Fixed local replay receiver]
+  Local --> Receipt[(Unique receipt and retained audit)]
+```
+
 ## Controls and limits
 
 - API/UI/database/cache listeners use loopback. API mutation requires the exact UI Origin and API Host is checked. No CORS enablement. This is not authentication; trusted local processes and people with database access remain privileged.

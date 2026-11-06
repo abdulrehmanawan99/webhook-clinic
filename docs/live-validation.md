@@ -34,9 +34,9 @@ rejection. Existing integration/browser/scenario checks exercise that bounded
 workflow; see [verification](verification.md). Live model output alone does not
 establish those safety properties.
 
-Remaining shared PRD evaluation work is to version a broader labeled evaluation
-set and scoring command, define numeric gates after this baseline, and evaluate
-unseen cases before broader quality claims. A second provider configuration is
-unverified and cannot be tested under the current exact-model-only authorization.
-No second provider, arbitrary-log diagnosis, production replay, or general AI
-acceptance is claimed. There is no need to repeat these successful calls.
+The [frozen development evaluation](evaluation.md) now provides versioned labels,
+numeric gates and a reproducible offline scoring command for these retained
+results. Broader/unseen-case quality remains unverified. A second provider
+configuration is unverified and cannot be tested under the current exact-model-only
+authorization. No second provider, arbitrary-log diagnosis, production replay, or
+general AI acceptance is claimed. There is no need to repeat these successful calls.
