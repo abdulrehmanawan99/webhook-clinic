@@ -21,6 +21,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npm run evaluate
+      - run: npm run check:secrets
       - run: npm audit --audit-level=high
       - run: npx playwright install --with-deps chromium
       - name: Real local workflow and failure scenarios

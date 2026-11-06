@@ -9,6 +9,18 @@ One Express process owns the Clinic API and a second, bundled receiver listener.
 3. A POST with the exact approval literal creates a durable audit before network work. MongoDB uniqueness fences races even after Redis expiry/restart. The audit correlation UUID accompanies the new signed request.
 4. Receiver validates HMAC over exact bytes, fixture ID and pre-existing approval audit; its unique correlation receipt prevents duplicate processing. It does not store incoming payload or headers. The sender records status and bounded generic result, not arbitrary response bodies.
 
+```mermaid
+flowchart LR
+  Receiver[Bundled synthetic receiver] --> Capture[Exact-byte verification and redacted capture]
+  Capture --> Delivery[(Immutable Mongo delivery)]
+  Delivery --> Rules[Three deterministic diagnostics]
+  Rules --> Selection[Fixture or bounded Gemini evidence selection]
+  Selection --> Review[Human evidence review and explicit approval]
+  Review --> Fence[Redis coordination and unique Mongo audit]
+  Fence --> Local[Fixed local replay receiver]
+  Local --> Receipt[(Unique receipt and retained audit)]
+```
+
 ## Controls and limits
 
 - API/UI/database/cache listeners use loopback. API mutation requires the exact UI Origin and API Host is checked. No CORS enablement. This is not authentication; trusted local processes and people with database access remain privileged.
@@ -18,6 +30,6 @@ One Express process owns the Clinic API and a second, bundled receiver listener.
 - If Redis fails, a new replay fails closed. MongoDB unique indexes preserve deduplication. After uncertain delivery or a crash, pending/uncertain audit is retained with no automatic retry. The system does not promise distributed exactly-once delivery.
 - Redaction, constraints and immutable snapshots protect this small fixed fixture workflow. This does not provide tamper-evident auditing against a database administrator or secure untrusted deployment.
 
-Gemini is gated by a nonempty server-only key and explicit free-tier confirmation. Its fixed endpoint receives only synthetic diagnostic findings. Each delivery/mode permits one durable attempt, including failed/pending outcomes; there are no automatic retries or fallback calls. A 10-second deadline, 1,800 output-token limit, 32 KiB response cap and strict schema/citation checks bound execution. The model has no network or replay tools. See provider/evaluation notes for unverified live behavior.
+Gemini is gated by a nonempty server-only key and explicit free-tier confirmation. Its fixed endpoint receives only synthetic diagnostic findings. Each delivery/mode permits one durable attempt, including failed/pending outcomes; there are no automatic retries or fallback calls. A 10-second deadline, 1,800 output-token limit, 32 KiB response cap and strict schema/citation checks bound execution. The model has no network or replay tools. See the provider/evaluation notes and live baseline for actual compatibility coverage and remaining quality limits.
 
 No arbitrary ingestion, auth, cloud, production replay or manual retry/reset UI is included. Bindings remain local. The revised capture schema uses a separate `webhook_clinic_v2` database, preserving earlier immutable evidence and audits.

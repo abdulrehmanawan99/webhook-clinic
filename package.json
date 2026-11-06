@@ -10,7 +10,10 @@
     "test": "tsx --test tests/*.test.ts",
     "test:integration": "tsx tests/integration.ts",
     "test:scenarios": "tsx tests/scenarios.ts",
-    "test:browser": "node scripts/browser-smoke.mjs"
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "evaluate": "tsx scripts/evaluate.ts",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "licenses": "node scripts/licenses.mjs"
   },
   "dependencies": {
     "express": "^4.21.2",
