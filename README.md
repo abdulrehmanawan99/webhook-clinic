@@ -1,8 +1,8 @@
 # Webhook Clinic
 
-A local inspection desk for failed webhook deliveries. React + Vite/TypeScript, Express/TypeScript, MongoDB and Redis. Three synthetic failures cover an invalid signature, HTTP 503 and a delivery timeout. The no-key workflow uses **deterministic fixture reasoning**. An optional server-only Gemini evidence selector is implemented; live provider compatibility and quality remain unverified.
+A local inspection desk for failed webhook deliveries. React + Vite/TypeScript, Express/TypeScript, MongoDB and Redis. Three synthetic failures cover an invalid signature, HTTP 503 and a delivery timeout. The no-key workflow uses **deterministic fixture reasoning**. An optional server-only Gemini evidence selector passed a [three-case synthetic live compatibility check](docs/live-validation.md); broader model quality remains unverified.
 
-The original v1 local workflow includes real failure reproduction, exact-byte HMAC verification, evidence investigation and an explicitly approved replay. Full PRD AI acceptance remains blocked on a billing-disabled free-tier key, live capability checks and a second supported provider configuration.
+The original v1 local workflow includes real failure reproduction, exact-byte HMAC verification, evidence investigation and an explicitly approved replay. Full PRD AI acceptance remains open for broader quality evaluation and a second supported provider configuration; only the exact Gemini model used in the recorded baseline is currently authorized.
 
 ![Local inspection desk](docs/screenshots/desktop.png)
 

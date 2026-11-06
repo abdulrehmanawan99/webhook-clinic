@@ -19,6 +19,8 @@ export type Delivery = {
   createdAt: string;
   durationMs: number;
   budgetMs: number;
+  // Optional for older immutable captures, which predate explicit timeout evidence.
+  deadlineReached?: boolean;
   request: {
     method: string;
     path: string;
@@ -90,6 +92,8 @@ export function verifyFixtureBytes(raw: string, signature: string) {
 export async function captureFixture(id: FixtureId): Promise<Delivery> {
   const source = privateFixture(id);
   const start = performance.now();
+  const deadline = AbortSignal.timeout(source.budgetMs);
+  let deadlineReached = false;
   let response: Delivery["response"] = {
     status: null,
     headers: {},
@@ -99,7 +103,7 @@ export async function captureFixture(id: FixtureId): Promise<Delivery> {
     const r = await fetch(`http://127.0.0.1:9011/fixtures/${id}`, {
       method: "POST",
       redirect: "error",
-      signal: AbortSignal.timeout(source.budgetMs),
+      signal: deadline,
       headers: {
         "content-type": "application/json",
         "x-fixture-signature": source.signature,
@@ -116,9 +120,13 @@ export async function captureFixture(id: FixtureId): Promise<Delivery> {
       body: text,
     };
   } catch {
+    deadlineReached = deadline.aborted;
     /* Retain the observed missing acknowledgement, never retry automatically. */
   }
-  return fixtureSnapshot(id, response, Math.round(performance.now() - start));
+  return {
+    ...fixtureSnapshot(id, response, Math.round(performance.now() - start)),
+    deadlineReached,
+  };
 }
 export function fixtureSnapshot(
   id: FixtureId,
@@ -187,14 +195,16 @@ export function diagnose(d: Delivery): Finding[] {
     {
       code: "timeout",
       level:
-        d.response.status === null && d.durationMs >= d.budgetMs
+        d.response.status === null &&
+        (d.deadlineReached ?? d.durationMs >= d.budgetMs)
           ? "fail"
           : "pass",
       title:
-        d.response.status === null && d.durationMs >= d.budgetMs
+        d.response.status === null &&
+        (d.deadlineReached ?? d.durationMs >= d.budgetMs)
           ? "Delivery deadline reached"
           : "Within delivery budget",
-      evidence: `durationMs = ${d.durationMs}; budgetMs = ${d.budgetMs}; response.status = ${d.response.status ?? "null"}.`,
+      evidence: `durationMs = ${d.durationMs}; budgetMs = ${d.budgetMs}; response.status = ${d.response.status ?? "null"}.${d.deadlineReached === undefined ? "" : ` deadlineReached = ${d.deadlineReached}.`}`,
       action:
         d.response.status === null
           ? "Keep receiver processing bounded; acknowledge promptly."

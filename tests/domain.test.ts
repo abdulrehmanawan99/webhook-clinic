@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  captureFixture,
   fixtureSnapshot,
   fixtureIds,
   privateFixture,
@@ -74,5 +75,55 @@ test("original verification uses private exact fixture bytes, not a validity fla
     assert(!publicEvidence.includes(source.signature));
     assert(!publicEvidence.includes(source.raw));
     assert(!publicEvidence.includes("signatureValid"));
+  }
+});
+
+test("deadline signal classifies timeout even when measured elapsed rounds below budget", async (t) => {
+  const clock = t.mock.method(performance, "now", () => 100);
+  clock.mock.mockImplementationOnce(() => 249, 1);
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (_url: unknown, options: RequestInit) => {
+      const signal = options.signal!;
+      // Keep the test alive: AbortSignal.timeout itself uses an unreferenced timer.
+      const keepAlive = setTimeout(() => {}, 1000);
+      try {
+        await new Promise<void>((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          });
+        });
+      } finally {
+        clearTimeout(keepAlive);
+      }
+      throw new Error("unreachable");
+    },
+  );
+  try {
+    const observation = await captureFixture("evt_timeout");
+    assert.equal(observation.durationMs, 149);
+    assert.equal(observation.deadlineReached, true);
+    const finding = diagnose(observation).find((f) => f.code === "timeout")!;
+    assert.equal(finding.level, "fail");
+    assert(finding.evidence.includes("deadlineReached = true"));
+  } finally {
+    t.mock.restoreAll();
+  }
+});
+
+test("a transport failure before the deadline is not classified as a timeout", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => {
+    throw new Error("connection refused");
+  });
+  try {
+    const observation = await captureFixture("evt_timeout");
+    assert.equal(observation.deadlineReached, false);
+    assert.equal(
+      diagnose(observation).find((f) => f.code === "timeout")!.level,
+      "pass",
+    );
+  } finally {
+    t.mock.restoreAll();
   }
 });

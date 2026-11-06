@@ -72,11 +72,10 @@ for (const id of ["evt_signature", "evt_status", "evt_timeout"]) {
     observation.response.status,
     id === "evt_signature" ? 401 : id === "evt_status" ? 503 : null,
   );
-  if (id === "evt_timeout")
-    assert(
-      observation.durationMs >= observation.budgetMs &&
-        observation.durationMs < 1500,
-    );
+  if (id === "evt_timeout") {
+    assert.equal(observation.deadlineReached, true);
+    assert(observation.durationMs >= 0 && observation.durationMs < 1500);
+  }
   assert(!JSON.stringify(observation).includes("synthetic@example.invalid"));
   assert.equal(observation.signatureValid, undefined);
 }
