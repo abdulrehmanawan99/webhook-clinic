@@ -36,8 +36,7 @@ still requires an actual abort and an elapsed time below the 1.5 s bound.
 
 `npm test`: eleven offline tests passed on Node 22.11.0, including a controlled
 149 ms observation with an actual deadline signal and a separate transport error.
-`npm run build`: TypeScript and Vite passed. Real integration and scenario checks
-will run on a fresh CI runner; local instances and their data were left running.
+`npm run build`: TypeScript and Vite passed. Fresh Linux [CI run 42264877794](https://github.com/abdulrehmanawan99/webhook-clinic/actions/runs/42264877794) passed real integration, desktop/mobile browser checks (zero runtime errors/axe violations), and timeout/outage/recovery/redirect/checkpoint scenarios. Local instances and their data were left running.
 
 ## Earlier fixture milestone — 2026-11-05
 
