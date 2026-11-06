@@ -13,9 +13,42 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
       - run: npm ci
       - run: npm test
       - run: npm run build
       - run: npm audit --audit-level=high
+      - name: Real local workflow and failure scenarios
+        env:
+          GEMINI_API_KEY: ""
+          GEMINI_FREE_TIER_CONFIRMED: "false"
+        run: |
+          set -euo pipefail
+          docker compose up -d --wait
+          node --import tsx server/index.ts > clinic-test.log 2>&1 &
+          clinic_pid=$!
+          cleanup() {
+            if [ -n "${clinic_pid:-}" ]; then
+              kill "$clinic_pid" 2>/dev/null || true
+              wait "$clinic_pid" 2>/dev/null || true
+            fi
+            docker compose down
+          }
+          trap cleanup EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8011/api/health > /dev/null; then
+              break
+            fi
+            if ! kill -0 "$clinic_pid" 2>/dev/null; then
+              cat clinic-test.log
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8011/api/health
+          npm run test:integration
+          kill "$clinic_pid"
+          wait "$clinic_pid"
+          clinic_pid=''
+          npm run test:scenarios

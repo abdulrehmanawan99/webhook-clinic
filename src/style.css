@@ -579,3 +579,40 @@ footer {
     display: none;
   }
 }
+.investigation-controls {
+  display: flex;
+  gap: 18px;
+  align-items: end;
+  justify-content: space-between;
+  margin: 20px 0;
+}
+.investigation-controls label {
+  font-size: 12px;
+  color: #b1bca5;
+  display: grid;
+  gap: 8px;
+}
+.investigation-controls select {
+  font: inherit;
+  color: #d3e9ba;
+  background: #252e1f;
+  border: 1px solid #667354;
+  padding: 10px;
+  max-width: 100%;
+}
+.investigation-controls select:focus-visible {
+  outline: 2px solid #d7f4a1;
+  outline-offset: 3px;
+}
+.investigation-result {
+  margin-top: 20px;
+}
+@media (max-width: 620px) {
+  .investigation-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .investigation-controls .action {
+    max-width: none;
+  }
+}

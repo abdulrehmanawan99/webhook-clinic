@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
+import type { Investigation } from "../server/investigation";
 import type { Delivery, Finding } from "../server/domain";
 import "./style.css";
 type Audit = {
@@ -14,6 +15,13 @@ type Detail = {
   delivery: Delivery;
   diagnosis: { findings: Finding[]; engine: string } | null;
   audit: Audit | null;
+  reproduction: { observation: Delivery; createdAt: string } | null;
+  investigations: {
+    mode: "fixture" | "gemini";
+    state: string;
+    error?: string;
+    result?: Investigation;
+  }[];
 };
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const r = await fetch(
@@ -33,6 +41,8 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
 function App() {
   const generation = useRef(0);
   const [items, setItems] = useState<Delivery[]>([]),
+    [mode, setMode] = useState<"fixture" | "gemini">("fixture"),
+    [geminiAvailable, setGeminiAvailable] = useState(false),
     [queueLoaded, setQueueLoaded] = useState(false),
     [selected, setSelected] = useState("evt_signature"),
     [detail, setDetail] = useState<Detail | null>(null),
@@ -53,6 +63,9 @@ function App() {
     }
   }
   useEffect(() => {
+    api<{ geminiAvailable: boolean }>("/config")
+      .then((config) => setGeminiAvailable(config.geminiAvailable))
+      .catch(() => {});
     api<{ items: Delivery[] }>("/deliveries?limit=20")
       .then((d) => setItems(d.items))
       .catch((e) => setError(e.message))
@@ -61,13 +74,19 @@ function App() {
   useEffect(() => {
     void load(selected);
   }, [selected]);
-  async function act(kind: "diagnose" | "replay") {
+  async function act(
+    kind: "diagnose" | "replay" | "reproduce" | "investigate",
+  ) {
     setBusy(kind);
     setError("");
     try {
       await api(
         "/deliveries/" + selected + "/" + kind,
-        kind === "replay" ? { approval: "REPLAY LOCAL FIXTURE" } : {},
+        kind === "replay"
+          ? { approval: "REPLAY LOCAL FIXTURE" }
+          : kind === "investigate"
+            ? { mode }
+            : {},
       );
       setDetail(await api<Detail>("/deliveries/" + selected));
       setApproved(false);
@@ -186,11 +205,20 @@ function App() {
               <div
                 className="tabs"
                 onKeyDown={(event) => {
-                  if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                  if (
+                    ["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                      event.key,
+                    )
+                  ) {
                     event.preventDefault();
-                    const next = event.key === "Home" ? "request"
-                      : event.key === "End" ? "response"
-                      : tab === "request" ? "response" : "request";
+                    const next =
+                      event.key === "Home"
+                        ? "request"
+                        : event.key === "End"
+                          ? "response"
+                          : tab === "request"
+                            ? "response"
+                            : "request";
                     setTab(next);
                     document.getElementById("evidence-tab-" + next)?.focus();
                   }
@@ -216,7 +244,12 @@ function App() {
                   ms budget
                 </span>
               </div>
-              <pre role="tabpanel" id="evidence-panel" aria-labelledby={"evidence-tab-" + tab} tabIndex={0}>
+              <pre
+                role="tabpanel"
+                id="evidence-panel"
+                aria-labelledby={"evidence-tab-" + tab}
+                tabIndex={0}
+              >
                 {JSON.stringify(detail.delivery[tab], null, 2)}
               </pre>
               <section className="diagnostic">
@@ -238,8 +271,9 @@ function App() {
                   </button>
                 </div>
                 <p className="muted small">
-                  Deterministic fixture rules · signature, HTTP status, delivery
-                  deadline. No AI inference.
+                  Measured synthetic fixture checks · exact-byte HMAC, receiver
+                  HTTP status, delivery deadline. No model needed for
+                  verification.
                 </p>
                 {detail.diagnosis ? (
                   <ol className="timeline">
@@ -265,6 +299,141 @@ function App() {
                     finding.
                   </div>
                 )}
+              </section>
+              <section className="diagnostic">
+                <div className="sectionhead">
+                  <div>
+                    <p className="eyebrow">LOCAL REPRODUCTION</p>
+                    <h2>Observe the failure again</h2>
+                  </div>
+                  <button
+                    className="action"
+                    disabled={!!busy || !!detail.reproduction}
+                    onClick={() => void act("reproduce")}
+                  >
+                    {busy === "reproduce"
+                      ? "Observing…"
+                      : detail.reproduction
+                        ? "Observation retained ✓"
+                        : "Reproduce locally ↗"}
+                  </button>
+                </div>
+                <p className="muted small">
+                  Known private synthetic bytes are sent to the bundled fixture
+                  receiver. The timeout case deliberately exceeds its 150 ms
+                  budget. No original evidence is replaced.
+                </p>
+                {detail.reproduction && (
+                  <div className="audit" role="status">
+                    <strong>
+                      HTTP{" "}
+                      {detail.reproduction.observation.response.status ??
+                        "— / DEADLINE"}{" "}
+                      · {detail.reproduction.observation.durationMs} ms observed
+                    </strong>
+                    <p>
+                      HMAC verification:{" "}
+                      {detail.reproduction.observation.signatureVerification
+                        .valid
+                        ? "matched"
+                        : "mismatched"}{" "}
+                      · capture {detail.reproduction.createdAt}
+                    </p>
+                    <p className="evidence">
+                      {detail.reproduction.observation.response.body}
+                    </p>
+                  </div>
+                )}
+              </section>
+              <section className="diagnostic">
+                <p className="eyebrow">EVIDENCE INVESTIGATION / OPTIONAL</p>
+                <h2>Choose the next checks</h2>
+                <p className="muted small">
+                  A bounded investigator selects signature, status or timeout
+                  evidence. Every summary and citation is validated against the
+                  retained diagnosis. Investigators cannot replay or select
+                  destinations.
+                </p>
+                <div className="investigation-controls">
+                  <label>
+                    Investigator{" "}
+                    <select
+                      value={mode}
+                      disabled={!!busy}
+                      onChange={(e) =>
+                        setMode(e.target.value as "fixture" | "gemini")
+                      }
+                    >
+                      <option value="fixture">
+                        Fixture selector · no inference
+                      </option>
+                      <option value="gemini" disabled={!geminiAvailable}>
+                        Gemini ·{" "}
+                        {geminiAvailable
+                          ? "explicit live request"
+                          : "server key required"}
+                      </option>
+                    </select>
+                  </label>
+                  <button
+                    className="action"
+                    disabled={
+                      !!busy ||
+                      !detail.diagnosis ||
+                      detail.investigations.some((i) => i.mode === mode)
+                    }
+                    onClick={() => void act("investigate")}
+                  >
+                    {busy === "investigate"
+                      ? "Investigating…"
+                      : mode === "gemini"
+                        ? "Request Gemini investigation ↗"
+                        : "Investigate fixture evidence ↗"}
+                  </button>
+                </div>
+                {!geminiAvailable && (
+                  <p className="muted small">
+                    No-key mode is ready. Optional Gemini requires a
+                    billing-disabled project key configured on the server.
+                  </p>
+                )}
+                {detail.investigations
+                  .filter((i) => i.mode === mode)
+                  .map((i) => (
+                    <div
+                      className="audit investigation-result"
+                      key={i.mode}
+                      role="status"
+                    >
+                      <strong>
+                        {i.mode === "gemini"
+                          ? "GEMINI LIVE PROVIDER"
+                          : "FIXTURE · NO INFERENCE"}{" "}
+                        / {i.state.toUpperCase()}
+                      </strong>
+                      {i.result ? (
+                        <>
+                          <p>{i.result.summary}</p>
+                          <p className="muted small">
+                            {i.result.model} ·{" "}
+                            {i.result.usage.inputTokens ?? "—"} input /{" "}
+                            {i.result.usage.outputTokens ?? "—"} output tokens
+                          </p>
+                          {i.result.checks.map((c) => (
+                            <div key={c.code}>
+                              <strong>{c.title}</strong>
+                              <p className="evidence">{c.evidenceQuote}</p>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <p>
+                          {i.error ??
+                            "Investigation pending. A retained attempt prevents duplicate provider calls; no replay is performed."}
+                        </p>
+                      )}
+                    </div>
+                  ))}
               </section>
               <section className="replay">
                 <div>

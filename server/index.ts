@@ -1,31 +1,46 @@
 import express from "express";
 import { MongoClient } from "mongodb";
-import { createClient } from "redis";
+import { createClient, commandOptions } from "redis";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   destination,
   fixtureIds,
-  fixtures,
+  captureFixture,
+  privateFixture,
+  verifyFixtureBytes,
   diagnose,
   sign,
   verify,
 } from "./domain.js";
 import type { Delivery } from "./domain.js";
+import {
+  fixtureInvestigation,
+  geminiInvestigation,
+  geminiConfigured,
+} from "./investigation.js";
 const mongo = new MongoClient(
   process.env.MONGO_URL ?? "mongodb://127.0.0.1:27018",
   { serverSelectionTimeoutMS: 3000 },
 );
 const redis = createClient({
   url: process.env.REDIS_URL ?? "redis://127.0.0.1:6381",
-  socket: { connectTimeout: 3000, reconnectStrategy: false },
+  disableOfflineQueue: true,
+  socket: {
+    connectTimeout: 3000,
+    reconnectStrategy: (retries) => Math.min(100 + retries * 100, 1000),
+  },
 });
 redis.on("error", () =>
   console.error("Redis unavailable; replay coordination fails closed."),
 );
 await mongo.connect();
 await redis.connect();
-const db = mongo.db("webhook_clinic");
+const databaseName = z
+  .string()
+  .regex(/^webhook_clinic_v2(?:_test_[a-z0-9]+)?$/)
+  .parse(process.env.CLINIC_DATABASE ?? "webhook_clinic_v2");
+const db = mongo.db(databaseName);
 const deliveries = db.collection<Delivery>("deliveries");
 const audits = db.collection("replay_audits");
 const receipts = db.collection("receiver_receipts");
@@ -35,13 +50,13 @@ await Promise.all([
   audits.createIndex({ deliveryId: 1 }, { unique: true }),
   audits.createIndex({ replayId: 1 }, { unique: true }),
   receipts.createIndex({ replayId: 1 }, { unique: true }),
+  db
+    .collection("reproductions")
+    .createIndex({ deliveryId: 1 }, { unique: true }),
+  db
+    .collection("investigations")
+    .createIndex({ deliveryId: 1, mode: 1 }, { unique: true }),
 ]);
-for (const d of fixtures())
-  await deliveries.updateOne(
-    { id: d.id },
-    { $setOnInsert: d },
-    { upsert: true },
-  );
 const key = process.env.DEMO_SIGNING_KEY ?? "clinic-synthetic-local-only";
 const idSchema = z.enum(fixtureIds);
 const app = express();
@@ -70,12 +85,19 @@ app.use("/api", (req, res, next) => {
 app.get("/api/health", async (_req, res, next) => {
   try {
     await mongo.db().command({ ping: 1 });
-    await redis.ping();
+    await redis.ping(commandOptions({ signal: AbortSignal.timeout(1000) }));
     res.json({ status: "ready", mode: "deterministic fixture" });
   } catch (e) {
     next(e);
   }
 });
+app.get("/api/config", (_req, res) =>
+  res.json({
+    geminiAvailable: geminiConfigured(),
+    model: "gemini-3.5-flash-lite",
+    captureVersion: "receiver-v2",
+  }),
+);
 app.get("/api/deliveries", async (req, res, next) => {
   try {
     const q = z
@@ -115,6 +137,14 @@ app.get("/api/deliveries/:id", async (req, res, next) => {
       diagnosis: await db
         .collection("diagnoses")
         .findOne({ deliveryId: id }, { projection: { _id: 0 } }),
+      reproduction: await db
+        .collection("reproductions")
+        .findOne({ deliveryId: id }, { projection: { _id: 0 } }),
+      investigations: await db
+        .collection("investigations")
+        .find({ deliveryId: id }, { projection: { _id: 0 } })
+        .limit(2)
+        .toArray(),
       audit: await audits.findOne(
         { deliveryId: id },
         { projection: { _id: 0 } },
@@ -127,6 +157,7 @@ app.get("/api/deliveries/:id", async (req, res, next) => {
 app.post("/api/deliveries/:id/diagnose", async (req, res, next) => {
   try {
     const id = idSchema.parse(req.params.id);
+    z.object({}).strict().parse(req.body);
     const delivery = await deliveries.findOne({ id });
     if (!delivery) {
       res.status(404).json({ error: "Delivery not found." });
@@ -134,7 +165,7 @@ app.post("/api/deliveries/:id/diagnose", async (req, res, next) => {
     }
     const result = {
       deliveryId: id,
-      engine: "deterministic-fixture-v1",
+      engine: "deterministic-receiver-v2",
       createdAt: new Date().toISOString(),
       findings: diagnose(delivery),
     };
@@ -149,6 +180,129 @@ app.post("/api/deliveries/:id/diagnose", async (req, res, next) => {
       await db
         .collection("diagnoses")
         .findOne({ deliveryId: id }, { projection: { _id: 0 } }),
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+app.post("/api/deliveries/:id/reproduce", async (req, res, next) => {
+  try {
+    const id = idSchema.parse(req.params.id);
+    z.object({}).strict().parse(req.body);
+    const existing = await db
+      .collection("reproductions")
+      .findOne({ deliveryId: id }, { projection: { _id: 0 } });
+    if (existing) {
+      res.json(existing);
+      return;
+    }
+    const observation = await captureFixture(id);
+    const reproduction = {
+      deliveryId: id,
+      createdAt: new Date().toISOString(),
+      observation,
+      findings: diagnose(observation),
+    };
+    await db
+      .collection("reproductions")
+      .updateOne(
+        { deliveryId: id },
+        { $setOnInsert: reproduction },
+        { upsert: true },
+      );
+    res.json(
+      await db
+        .collection("reproductions")
+        .findOne({ deliveryId: id }, { projection: { _id: 0 } }),
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+app.post("/api/deliveries/:id/investigate", async (req, res, next) => {
+  try {
+    const id = idSchema.parse(req.params.id);
+    const { mode } = z
+      .object({ mode: z.enum(["fixture", "gemini"]) })
+      .strict()
+      .parse(req.body);
+    const diagnosis = await db
+      .collection("diagnoses")
+      .findOne({ deliveryId: id });
+    if (!diagnosis) {
+      res
+        .status(409)
+        .json({ error: "Run diagnostics before an investigation." });
+      return;
+    }
+    const existing = await db
+      .collection("investigations")
+      .findOne({ deliveryId: id, mode }, { projection: { _id: 0 } });
+    if (existing) {
+      res.json(existing);
+      return;
+    }
+    if (mode === "gemini" && !geminiConfigured()) {
+      res.status(409).json({
+        error:
+          "Gemini requires a server-side API key and billing-disabled free-tier confirmation. Fixture investigation is available.",
+      });
+      return;
+    }
+    // One durable attempt per mode and delivery: prevents repeated quota use, including after a crash.
+    const run = {
+      deliveryId: id,
+      mode,
+      state: "pending",
+      createdAt: new Date().toISOString(),
+      diagnosisVersion: diagnosis.engine,
+    };
+    try {
+      await db.collection("investigations").insertOne({ ...run });
+    } catch (e) {
+      if ((e as { code?: number }).code === 11000) {
+        res.status(409).json({
+          error: "Investigation already retained or in progress. Refresh.",
+        });
+        return;
+      }
+      throw e;
+    }
+    try {
+      const result =
+        mode === "fixture"
+          ? fixtureInvestigation(diagnosis.findings)
+          : await geminiInvestigation(
+              diagnosis.findings,
+              process.env.GEMINI_API_KEY!,
+            );
+      await db.collection("investigations").updateOne(
+        { deliveryId: id, mode },
+        {
+          $set: {
+            state: "succeeded",
+            completedAt: new Date().toISOString(),
+            result,
+          },
+        },
+      );
+    } catch {
+      await db.collection("investigations").updateOne(
+        { deliveryId: id, mode },
+        {
+          $set: {
+            state: "failed",
+            completedAt: new Date().toISOString(),
+            error:
+              "Investigation unavailable or output rejected. No retry, fallback, or replay was performed.",
+          },
+        },
+      );
+    }
+    res.json(
+      await db
+        .collection("investigations")
+        .findOne({ deliveryId: id, mode }, { projection: { _id: 0 } }),
     );
   } catch (e) {
     next(e);
@@ -176,7 +330,14 @@ app.post("/api/deliveries/:id/replay", async (req, res, next) => {
     }
     const lockKey = `clinic:replay:${id}`;
     const owner = randomUUID();
-    if (!(await redis.set(lockKey, owner, { NX: true, PX: 10000 }))) {
+    if (
+      !(await redis.set(
+        commandOptions({ signal: AbortSignal.timeout(1000) }),
+        lockKey,
+        owner,
+        { NX: true, PX: 10000 },
+      ))
+    ) {
       res
         .status(409)
         .json({ error: "Replay already in progress. Refresh the audit." });
@@ -266,6 +427,7 @@ app.post("/api/deliveries/:id/replay", async (req, res, next) => {
     } finally {
       await redis
         .eval(
+          commandOptions({ signal: AbortSignal.timeout(1000) }),
           "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
           { keys: [lockKey], arguments: [owner] },
         )
@@ -302,6 +464,35 @@ app.use(
 const receiver = express();
 receiver.disable("x-powered-by");
 receiver.use(express.raw({ type: "application/json", limit: "16kb" }));
+receiver.post("/fixtures/:id", async (req, res) => {
+  const parsed = idSchema.safeParse(req.params.id);
+  if (!parsed.success || !Buffer.isBuffer(req.body)) {
+    res.status(400).json({ error: "Known synthetic fixture required." });
+    return;
+  }
+  const source = privateFixture(parsed.data);
+  if (req.body.toString() !== source.raw) {
+    res.status(400).json({ error: "Synthetic fixture bytes required." });
+    return;
+  }
+  if (
+    !verifyFixtureBytes(
+      req.body.toString(),
+      String(req.headers["x-fixture-signature"] ?? ""),
+    )
+  ) {
+    res.status(401).json({ error: "signature mismatch" });
+    return;
+  }
+  if (parsed.data === "evt_status") {
+    res.status(503).json({ error: "receiver unavailable" });
+    return;
+  }
+  // The original timeout fixture deliberately exceeds its 150ms sender budget.
+  if (parsed.data === "evt_timeout")
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  if (!res.destroyed) res.json({ accepted: true });
+});
 receiver.post("/receive", async (req, res) => {
   try {
     if (
@@ -341,7 +532,20 @@ receiver.post("/receive", async (req, res) => {
     } catch (e) {
       if ((e as { code?: number }).code !== 11000) throw e;
     }
-    res.json({ accepted: true, replayId: parsed.replayId });
+    // Test-only process configuration; never accepted from an API request.
+    if (
+      process.env.NODE_ENV === "test" &&
+      process.env.CLINIC_TEST_RECEIVER_MODE === "timeout"
+    )
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (
+      process.env.NODE_ENV === "test" &&
+      process.env.CLINIC_TEST_RECEIVER_MODE === "redirect"
+    ) {
+      res.redirect(302, "http://127.0.0.1:9012/forbidden");
+      return;
+    }
+    if (!res.destroyed) res.json({ accepted: true, replayId: parsed.replayId });
   } catch {
     res.status(400).json({ error: "Invalid synthetic delivery." });
   }
@@ -359,6 +563,16 @@ receiver.use(
 const receiverServer = receiver.listen(9011, "127.0.0.1", () =>
   console.log("Controlled receiver: http://127.0.0.1:9011"),
 );
+await new Promise<void>((resolve, reject) => {
+  receiverServer.once("listening", resolve);
+  receiverServer.once("error", reject);
+});
+for (const id of fixtureIds) {
+  if (!(await deliveries.findOne({ id }))) {
+    const d = await captureFixture(id);
+    await deliveries.updateOne({ id }, { $setOnInsert: d }, { upsert: true });
+  }
+}
 receiverServer.requestTimeout = 5000;
 receiverServer.headersTimeout = 5000;
 const server = app.listen(8011, "127.0.0.1", () =>
