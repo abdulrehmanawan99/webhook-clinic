@@ -1,0 +1,58 @@
+{
+  "version": "webhook-quality-v1",
+  "frozenAt": "2026-11-06",
+  "basis": "Frozen after the 2026-11-06 three-case synthetic development baseline; not held out. Evidence quotes preserve only the seven previously validated cited source strings, not every source diagnostic.",
+  "gates": {
+    "primaryAccuracy": 1,
+    "citationValidity": 1,
+    "validResults": 3
+  },
+  "cases": [
+    {
+      "id": "evt_signature",
+      "expectedPrimary": "signature",
+      "sourceEvidence": [
+        {
+          "code": "signature",
+          "quote": "HMAC-SHA256 verification = false; 122 private synthetic bytes; SHA-256 556ad3eb73ac19063a76f17cdfed42dba321a226f70fdb54714f83d3a951a57e. Signature and source bytes are withheld."
+        },
+        {
+          "code": "status",
+          "quote": "response.status = 401; response.body = {\"error\":\"signature mismatch\"}"
+        }
+      ]
+    },
+    {
+      "id": "evt_status",
+      "expectedPrimary": "status",
+      "sourceEvidence": [
+        {
+          "code": "status",
+          "quote": "response.status = 503; response.body = {\"error\":\"receiver unavailable\"}"
+        },
+        {
+          "code": "timeout",
+          "quote": "durationMs = 10; budgetMs = 1500; response.status = 503."
+        }
+      ]
+    },
+    {
+      "id": "evt_timeout",
+      "expectedPrimary": "timeout",
+      "sourceEvidence": [
+        {
+          "code": "timeout",
+          "quote": "durationMs = 154; budgetMs = 150; response.status = null."
+        },
+        {
+          "code": "status",
+          "quote": "response.status = null; response.body = No response before deadline"
+        },
+        {
+          "code": "signature",
+          "quote": "HMAC-SHA256 verification = true; 123 private synthetic bytes; SHA-256 3ec2770ec6ef851db9e978a68200f3fbdd366b931ab78c9e75b9cc8d2ea9855f. Signature and source bytes are withheld."
+        }
+      ]
+    }
+  ]
+}

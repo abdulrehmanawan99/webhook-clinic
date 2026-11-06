@@ -21,7 +21,22 @@ The outage failure was reproduced locally with child stdout/stderr enabled. Redi
 
 The GitHub Actions workflow starts this project's real MongoDB/Redis on a fresh Linux runner, owns its API/receiver lifecycle, runs integration and browser checks, stops the owned app process, then runs failure scenarios. Gemini credentials are explicitly disabled and cleanup affects only this Compose project.
 
-Provider keys remain absent. Live Gemini compatibility, measured model quality and two-provider acceptance remain unverified; see [provider evaluation](provider-evaluation.md).
+Three authorized synthetic Gemini app investigations subsequently succeeded; see the separate [live validation record](live-validation.md). Broader quality and two-provider acceptance remain unverified.
+
+## Post-merge deadline correction — 2026-11-06
+
+Main CI run `42264213004` failed the integration assertion that measured elapsed
+time must be at least the 150 ms timeout budget. An abort timer can fire before
+the rounded monotonic measurement reaches that value. The same elapsed-time
+comparison also classified a real deadline abort as passing the timeout check.
+New captures retain the actual deadline signal outcome separately from elapsed
+time; diagnostics use that outcome, with the previous comparison retained only
+for older immutable captures. No persisted records are rewritten. Integration
+still requires an actual abort and an elapsed time below the 1.5 s bound.
+
+`npm test`: eleven offline tests passed on Node 22.11.0, including a controlled
+149 ms observation with an actual deadline signal and a separate transport error.
+`npm run build`: TypeScript and Vite passed. Fresh Linux [CI run 42264877794](https://github.com/abdulrehmanawan99/webhook-clinic/actions/runs/42264877794) passed real integration, desktop/mobile browser checks (zero runtime errors/axe violations), and timeout/outage/recovery/redirect/checkpoint scenarios. Local instances and their data were left running.
 
 ## Earlier fixture milestone — 2026-11-05
 
