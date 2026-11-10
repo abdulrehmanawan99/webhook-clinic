@@ -28,7 +28,7 @@ quality acceptance. The model selected evidence already computed by deterministi
 rules; it did not independently verify signatures or execute replay tools.
 Offline mocked rejection tests are separate from these successful live calls.
 
-The canonical PRD Webhook Clinic acceptance requires local failure reproduction,
+Webhook Clinic's acceptance criteria require local failure reproduction,
 a validated cause, retained replay audit evidence and restricted-destination
 rejection. Existing integration/browser/scenario checks exercise that bounded
 workflow; see [verification](verification.md). Live model output alone does not
@@ -36,7 +36,6 @@ establish those safety properties.
 
 The [frozen development evaluation](evaluation.md) now provides versioned labels,
 numeric gates and a reproducible offline scoring command for these retained
-results. Broader/unseen-case quality remains unverified. A second provider
-configuration is unverified and cannot be tested under the current exact-model-only
-authorization. No second provider, arbitrary-log diagnosis, production replay, or
-general AI acceptance is claimed. There is no need to repeat these successful calls.
+results. Broader/unseen-case quality remains unverified. Only `gemini-3.5-flash-lite` is
+supported; no second provider is implemented. No second provider, arbitrary-log diagnosis, production replay, or
+general AI acceptance is claimed.

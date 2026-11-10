@@ -52,7 +52,7 @@ security assessment.
 Versioned labels, gates, result export, scoring/failure examples and model
 variability limits are in [evaluation](evaluation.md). The three prior live calls
 are a synthetic development compatibility baseline. Broader/unseen-case quality
-and a second provider remain unverified. No authorized second provider exists.
+and a second provider remain unverified. Only one provider (Gemini) is implemented.
 Resource/queue measurements and latency percentiles are not established; no such
 performance claims are made.
 

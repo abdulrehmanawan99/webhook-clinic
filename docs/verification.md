@@ -1,5 +1,14 @@
 # Verification record
 
+## Setup and fresh-clone check — 2026-11-10
+
+The branch was cloned into a new directory and the README was followed exactly on macOS with Node 22.11.0. The steps were `npm ci`, `docker compose up -d --wait` and `npm run dev`. Another instance already used the default ports, so the clone used a `.env` that set `COMPOSE_PROJECT_NAME` and the `CLINIC_*_PORT` overrides (UI 5274, API 8111, receiver 9111, MongoDB 27118, Redis 6481). The server, Vite and Compose all picked up the overrides. A mutation sent with the default-port origin was rejected.
+
+- `npm test`: 16 offline tests passed, including `.env` loading with exported-variable precedence, port validation, and the key-only Gemini gate. No inference calls were made.
+- `npm run build`: passed.
+- `npm run test:browser` against the clone: the full fixture workflow passed (select, diagnose, reproduce, fixture investigation, approve, replay, audit retained after reload, keyboard tabs), with zero browser errors and zero axe violations on desktop and mobile. The refreshed screenshots come from this run, which is why they show receiver port 9111.
+- `npm run test:integration` and `npm run test:scenarios` passed against the clone's own Compose project. Only that project's containers were stopped, and they were removed afterwards.
+
 ## Current implementation — 2026-11-06
 
 Verified locally with Node 24.22.1:
@@ -21,7 +30,7 @@ The outage failure was reproduced locally with child stdout/stderr enabled. Redi
 
 The GitHub Actions workflow starts this project's real MongoDB/Redis on a fresh Linux runner, owns its API/receiver lifecycle, runs integration and browser checks, stops the owned app process, then runs failure scenarios. Gemini credentials are explicitly disabled and cleanup affects only this Compose project.
 
-Three authorized synthetic Gemini app investigations subsequently succeeded; see the separate [live validation record](live-validation.md). Broader quality and two-provider acceptance remain unverified.
+Three synthetic Gemini app investigations subsequently succeeded; see the separate [live validation record](live-validation.md). Broader quality and two-provider acceptance remain unverified.
 
 ## Post-merge deadline correction — 2026-11-06
 
