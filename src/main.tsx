@@ -43,6 +43,7 @@ function App() {
   const [items, setItems] = useState<Delivery[]>([]),
     [mode, setMode] = useState<"fixture" | "gemini">("fixture"),
     [geminiAvailable, setGeminiAvailable] = useState(false),
+    [destination, setDestination] = useState(""),
     [queueLoaded, setQueueLoaded] = useState(false),
     [selected, setSelected] = useState("evt_signature"),
     [detail, setDetail] = useState<Detail | null>(null),
@@ -63,8 +64,11 @@ function App() {
     }
   }
   useEffect(() => {
-    api<{ geminiAvailable: boolean }>("/config")
-      .then((config) => setGeminiAvailable(config.geminiAvailable))
+    api<{ geminiAvailable: boolean; destination: string }>("/config")
+      .then((config) => {
+        setGeminiAvailable(config.geminiAvailable);
+        setDestination(config.destination);
+      })
       .catch(() => {});
     api<{ items: Delivery[] }>("/deliveries?limit=20")
       .then((d) => setItems(d.items))
@@ -393,8 +397,8 @@ function App() {
                 </div>
                 {!geminiAvailable && (
                   <p className="muted small">
-                    No-key mode is ready. Optional Gemini requires a
-                    billing-disabled project key configured on the server.
+                    No-key mode is ready. Optional Gemini requires
+                    GEMINI_API_KEY set on the server (see README).
                   </p>
                 )}
                 {detail.investigations
@@ -445,7 +449,7 @@ function App() {
                   </p>
                 </div>
                 <code className="target">
-                  POST http://127.0.0.1:9011/receive{" "}
+                  POST {destination || "fixed local receiver"}{" "}
                   <span>FIXED DESTINATION</span>
                 </code>
                 {detail.audit ? (

@@ -66,8 +66,8 @@ separate review of those assumptions.
 
 Use the exact `127.0.0.1` UI origin. Other origins are deliberately rejected.
 If the app cannot start, inspect the dedicated ports in README and check MongoDB/
-Redis health; do not stop unknown processes or delete volumes. The server does
-not automatically load `.env`. Fixture mode needs no provider key. A failed or
+Redis health; do not stop unknown processes or delete volumes. The server loads
+`.env` if present; exported variables take precedence. Fixture mode needs no provider key. A failed or
 pending provider/replay attempt remains retained without an automatic retry;
 refreshing does not reset it. Never reuse imported live credentials.
 

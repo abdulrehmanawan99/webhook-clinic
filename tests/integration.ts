@@ -2,8 +2,9 @@
 import assert from "node:assert/strict";
 import { request } from "node:http";
 import { MongoClient } from "mongodb";
-const base = "http://127.0.0.1:8011/api";
-const origin = "http://127.0.0.1:5174";
+import { apiBase, mongoUrl, receiverBase, uiOrigin } from "../server/config.js";
+const base = `${apiBase}/api`;
+const origin = uiOrigin;
 async function call(path: string, body?: unknown, customOrigin = origin) {
   const r = await fetch(
     base + path,
@@ -142,15 +143,13 @@ assert.equal(retry.data.audit.state, "succeeded");
 assert.equal(retry.data.audit.status, 200);
 const after = await call("/deliveries/evt_signature");
 assert.deepEqual(after.data.delivery, before.data.delivery);
-const receiver = await fetch("http://127.0.0.1:9011/receive", {
+const receiver = await fetch(`${receiverBase}/receive`, {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: "{}",
 });
 assert.equal(receiver.status, 401);
-const mongo = new MongoClient(
-  process.env.MONGO_URL ?? "mongodb://127.0.0.1:27018",
-);
+const mongo = new MongoClient(mongoUrl);
 await mongo.connect();
 try {
   const db = mongo.db(process.env.CLINIC_DATABASE ?? "webhook_clinic_v2");
