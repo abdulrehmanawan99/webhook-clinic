@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-export const destination = "http://127.0.0.1:9011/receive";
+import { receiverBase } from "./config.js";
+export const destination = `${receiverBase}/receive`;
 export const fixtureIds = [
   "evt_signature",
   "evt_status",
@@ -100,7 +101,7 @@ export async function captureFixture(id: FixtureId): Promise<Delivery> {
     body: "No response before deadline",
   };
   try {
-    const r = await fetch(`http://127.0.0.1:9011/fixtures/${id}`, {
+    const r = await fetch(`${receiverBase}/fixtures/${id}`, {
       method: "POST",
       redirect: "error",
       signal: deadline,

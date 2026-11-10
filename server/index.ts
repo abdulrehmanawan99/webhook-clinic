@@ -1,3 +1,12 @@
+import {
+  apiBase,
+  apiPort,
+  mongoUrl,
+  receiverBase,
+  receiverPort,
+  redisUrl,
+  uiOrigin,
+} from "./config.js";
 import express from "express";
 import { MongoClient } from "mongodb";
 import { createClient } from "redis";
@@ -19,12 +28,9 @@ import {
   geminiInvestigation,
   geminiConfigured,
 } from "./investigation.js";
-const mongo = new MongoClient(
-  process.env.MONGO_URL ?? "mongodb://127.0.0.1:27018",
-  { serverSelectionTimeoutMS: 3000 },
-);
+const mongo = new MongoClient(mongoUrl, { serverSelectionTimeoutMS: 3000 });
 const redis = createClient({
-  url: process.env.REDIS_URL ?? "redis://127.0.0.1:6381",
+  url: redisUrl,
   disableOfflineQueue: true,
   commandsQueueMaxLength: 128,
   socket: {
@@ -82,7 +88,11 @@ const idSchema = z.enum(fixtureIds);
 const app = express();
 app.disable("x-powered-by");
 app.use((req, res, next) => {
-  if (!["127.0.0.1:8011", "localhost:8011"].includes(req.headers.host ?? "")) {
+  if (
+    ![`127.0.0.1:${apiPort}`, `localhost:${apiPort}`].includes(
+      req.headers.host ?? "",
+    )
+  ) {
     res.status(403).json({ error: "Local host required." });
     return;
   }
@@ -94,7 +104,7 @@ app.use("/api", (_req, res, next) => {
   next();
 });
 app.use("/api", (req, res, next) => {
-  if (req.method !== "GET" && req.headers.origin !== "http://127.0.0.1:5174") {
+  if (req.method !== "GET" && req.headers.origin !== uiOrigin) {
     res
       .status(403)
       .json({ error: "Mutations require the local Clinic UI origin." });
@@ -116,6 +126,7 @@ app.get("/api/config", (_req, res) =>
     geminiAvailable: geminiConfigured(),
     model: "gemini-3.5-flash-lite",
     captureVersion: "receiver-v2",
+    destination,
   }),
 );
 app.get("/api/deliveries", async (req, res, next) => {
@@ -265,7 +276,7 @@ app.post("/api/deliveries/:id/investigate", async (req, res, next) => {
     if (mode === "gemini" && !geminiConfigured()) {
       res.status(409).json({
         error:
-          "Gemini requires a server-side API key and billing-disabled free-tier confirmation. Fixture investigation is available.",
+          "Gemini requires GEMINI_API_KEY on the server. Fixture investigation is available.",
       });
       return;
     }
@@ -556,7 +567,7 @@ receiver.post("/receive", async (req, res) => {
       process.env.NODE_ENV === "test" &&
       process.env.CLINIC_TEST_RECEIVER_MODE === "redirect"
     ) {
-      res.redirect(302, "http://127.0.0.1:9012/forbidden");
+      res.redirect(302, `http://127.0.0.1:${receiverPort + 1}/forbidden`);
       return;
     }
     if (!res.destroyed) res.json({ accepted: true, replayId: parsed.replayId });
@@ -574,8 +585,8 @@ receiver.use(
     res.status(400).json({ error: "Invalid receiver request." });
   },
 );
-const receiverServer = receiver.listen(9011, "127.0.0.1", () =>
-  console.log("Controlled receiver: http://127.0.0.1:9011"),
+const receiverServer = receiver.listen(receiverPort, "127.0.0.1", () =>
+  console.log(`Controlled receiver: ${receiverBase}`),
 );
 await new Promise<void>((resolve, reject) => {
   receiverServer.once("listening", resolve);
@@ -589,8 +600,8 @@ for (const id of fixtureIds) {
 }
 receiverServer.requestTimeout = 5000;
 receiverServer.headersTimeout = 5000;
-const server = app.listen(8011, "127.0.0.1", () =>
-  console.log("Clinic API: http://127.0.0.1:8011 · fixture mode"),
+const server = app.listen(apiPort, "127.0.0.1", () =>
+  console.log(`Clinic API: ${apiBase} · UI origin ${uiOrigin}`),
 );
 server.requestTimeout = 5000;
 server.headersTimeout = 5000;

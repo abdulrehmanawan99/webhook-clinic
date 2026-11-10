@@ -5,10 +5,18 @@ import { promisify } from "node:util";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { MongoClient } from "mongodb";
+import {
+  apiBase,
+  apiPort,
+  mongoUrl,
+  receiverBase,
+  receiverPort,
+  uiOrigin,
+} from "../server/config.js";
 const exec = promisify(execFile);
-const base = "http://127.0.0.1:8011/api";
+const base = `${apiBase}/api`;
 const database = `webhook_clinic_v2_test_${randomUUID().replaceAll("-", "")}`;
-const mongo = new MongoClient("mongodb://127.0.0.1:27018", {
+const mongo = new MongoClient(mongoUrl, {
   serverSelectionTimeoutMS: 3000,
 });
 let child: ReturnType<typeof spawn> | undefined;
@@ -32,7 +40,7 @@ async function call(path: string, body?: unknown) {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            origin: "http://127.0.0.1:5174",
+            origin: uiOrigin,
           },
           body: JSON.stringify(body),
         }),
@@ -60,7 +68,6 @@ async function start(mode: string) {
       CLINIC_DATABASE: database,
       CLINIC_TEST_RECEIVER_MODE: mode,
       GEMINI_API_KEY: "",
-      GEMINI_FREE_TIER_CONFIRMED: "false",
     },
     stdio: ["ignore", "inherit", "inherit"],
   });
@@ -87,11 +94,11 @@ async function docker(...args: string[]) {
   });
 }
 try {
-  await freePort(8011);
-  await freePort(9011);
+  await freePort(apiPort);
+  await freePort(receiverPort);
   await new Promise<void>((resolve, reject) => {
     trap.once("error", reject);
-    trap.listen(9012, "127.0.0.1", resolve);
+    trap.listen(receiverPort + 1, "127.0.0.1", resolve);
   });
   await mongo.connect();
   await start("timeout");
@@ -123,7 +130,7 @@ try {
     replayId: crashId,
     state: "pending",
     approvedAt: new Date().toISOString(),
-    destination: "http://127.0.0.1:9011/receive",
+    destination: `${receiverBase}/receive`,
     approval: "explicit-local-fixture",
     status: null,
     detail: "Test: process terminated after approval checkpoint.",

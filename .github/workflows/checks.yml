@@ -28,7 +28,6 @@ jobs:
       - name: Real local workflow and failure scenarios
         env:
           GEMINI_API_KEY: ""
-          GEMINI_FREE_TIER_CONFIRMED: "false"
         run: |
           set -euo pipefail
           docker compose up -d --wait

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { receiverPort } from "../server/config.js";
 import {
   captureFixture,
   fixtureSnapshot,
@@ -56,7 +57,7 @@ test("signature verification binds exact bytes and rejects malformed signatures"
   assert(!verify('{ "fixture":true}', signature, "demo"));
   assert(!verify("{}", "bad", "demo"));
   assert(!verify("{}", "a".repeat(64), "other"));
-  assert.equal(destination, "http://127.0.0.1:9011/receive");
+  assert.equal(destination, `http://127.0.0.1:${receiverPort}/receive`);
 });
 
 test("original verification uses private exact fixture bytes, not a validity flag", () => {

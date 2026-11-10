@@ -1,48 +1,112 @@
 # Webhook Clinic
 
-A local inspection desk for failed webhook deliveries. React + Vite/TypeScript, Express/TypeScript, MongoDB and Redis. Three synthetic failures cover an invalid signature, HTTP 503 and a delivery timeout. The no-key workflow uses **deterministic fixture reasoning**. An optional server-only Gemini evidence selector passed a [three-case synthetic live compatibility check](docs/live-validation.md); broader model quality remains unverified.
+A local inspection desk for failed webhook deliveries.
 
-The original v1 local workflow includes real failure reproduction, exact-byte HMAC verification, evidence investigation and an explicitly approved replay. Full PRD AI acceptance remains open for broader quality evaluation and a second supported provider configuration; only the exact Gemini model used in the recorded baseline is currently authorized.
+## Problem and user
 
-![Local inspection desk](docs/screenshots/desktop.png)
+When a webhook delivery fails, a backend developer has to work out why (bad signature, receiver error or timeout) and then decide whether it is safe to send it again. Logs rarely keep the exact evidence, and a careless replay can deliver the same event twice or to the wrong place. Webhook Clinic shows that workflow end to end on three synthetic failures: inspect the evidence, run deterministic diagnostics, review the cited evidence, and replay once, with explicit approval, to a fixed local receiver. Every step leaves an audit record.
 
-## Run locally
+## Features
 
-Requires Node 22+ and Docker Compose. Use these dedicated loopback ports: UI **5174**, API **8011**, controlled receiver **9011**, MongoDB **27018**, Redis **6381**. Check that they are free first; do not stop unrelated applications.
+- Three seeded synthetic failures, actually reproduced against a bundled receiver: invalid HMAC (401), receiver unavailable (503) and a missed 150 ms deadline.
+- Immutable, redacted request/response snapshots. The HMAC is verified over the private exact bytes before redaction.
+- Three deterministic diagnostics (signature, HTTP status, deadline), each citing its source evidence.
+- Optional evidence investigation: a no-key fixture selector, or Gemini (`gemini-3.5-flash-lite`) with your own key. The model can only pick allowlisted checks and quote existing evidence; it cannot replay or choose a destination.
+- Approved replay: a newly signed payload goes only to `127.0.0.1:<receiver port>/receive`. Redirects and automatic retries are disabled. Redis coordinates and MongoDB unique indexes ensure one retained audit per fixture.
+- Keyboard-accessible, responsive UI with a clear fixture-mode label.
+
+## Screenshots
+
+| Desktop | Mobile |
+|---|---|
+| ![Desktop inspection desk after an approved replay](docs/screenshots/desktop.png) | ![Mobile layout of the same workflow](docs/screenshots/mobile.png) |
+
+These screenshots come from a fresh clone that ran with port overrides, so the receiver is shown on port 9111.
+
+## Quick start (fixture mode, no key)
+
+Requires Node 22+ and Docker with Compose. Everything binds to `127.0.0.1`. Default ports: UI **5174**, API **8011**, receiver **9011**, MongoDB **27018**, Redis **6381**.
 
 ```sh
+git clone https://github.com/abdulrehmanawan99/webhook-clinic.git
+cd webhook-clinic
 npm ci
 docker compose up -d --wait
 npm run dev
 ```
 
-Open **http://127.0.0.1:5174** (use this exact host; mutation origin checks intentionally reject other origins). Select a fixture, inspect request/response snapshots, run diagnostics, review their source evidence, check the explicit approval box, then replay. A retained audit replaces the approval control. Other fixtures remain available to exercise the flow.
+Open **http://127.0.0.1:5174**. Use exactly this address: the API rejects changes from any other origin.
 
-Defaults work without an env file. `.env.example` documents optional overrides. To use one, copy it to `.env` and export its variables in your shell before starting; the app does not automatically load it. Only synthetic signing material belongs here.
+1. Select a delivery in the queue (for example, `shipment.created`).
+2. Run diagnostics, then read the evidence cited for each check. You can also reproduce the failure locally.
+3. Optionally, run the fixture investigation (no inference).
+4. Tick the approval box and click **Approve & replay locally**.
+5. The retained audit (status, correlation ID, approval time) replaces the approval control and persists after a reload.
+
+Each fixture allows exactly one replay attempt, by design. Stop with Ctrl-C. `docker compose stop` keeps the data.
+
+### Ports already in use?
+
+Copy `.env.example` to `.env` and uncomment the port variables. The server, Vite and Docker Compose all read `.env`. The allowed UI origin follows `CLINIC_UI_PORT`. To run a second copy next to an existing one, also set a separate Compose project:
 
 ```sh
-npm run build             # strict type check + UI bundle
-npm test                  # domain, provider/scoring regressions; offline
-npm run evaluate          # rescore persisted live baseline; no inference
-npm run check:secrets     # bounded tracked-text + frontend-bundle pattern check
-npm run licenses          # offline locked/installed dependency inventory
-npm run test:integration  # running app + local MongoDB required; retains audit
-npm run test:scenarios    # app ports FREE; starts isolated app; briefly stops project DB/cache
-npm audit
+COMPOSE_PROJECT_NAME=webhook-clinic-2
+CLINIC_UI_PORT=5274
+CLINIC_API_PORT=8111
+CLINIC_RECEIVER_PORT=9111
+CLINIC_MONGO_PORT=27118
+CLINIC_REDIS_PORT=6481
 ```
 
-`npm start` runs the API and bundled receiver only. `npm run dev` also runs Vite. Ctrl-C stops the application. `docker compose stop` preserves MongoDB data. No reset or deletion is needed; seed insertion uses `$setOnInsert` and repeated approvals return the existing audit.
+Then open `http://127.0.0.1:5274`. Variables exported in your shell take precedence over `.env`.
 
-## Workflow and boundaries
+## Use your own Gemini key
 
-- Sanitized fixtures are inserted once and served as immutable request/response evidence. There is no ingestion or edit endpoint.
-- Seed creation actually sends private synthetic bytes to the bundled receiver: invalid HMAC returns 401, controlled unavailability returns 503, and a delayed response exceeds a 150 ms deadline. The separate reproduce action retains a new observation without replacing original evidence.
-- Three fixed diagnostics retain source fields. HMAC is verified over private exact bytes before redaction; only its result, byte count and body hash are persisted. The sanitized inspector body must not be used to verify the original signature.
-- Optional investigation selects up to three allowlisted evidence checks with exact validated citations. Fixture mode performs no inference. Gemini mode requires an explicit UI request and server-side configuration; it cannot replay or choose a destination. See [provider and evaluation boundaries](docs/provider-evaluation.md).
-- Replay requires a retained diagnosis plus explicit approval. The server signs a new synthetic payload and sends it only to the compiled-in `127.0.0.1:9011/receive` destination. Client-supplied destinations are rejected. Redirects and automatic retries are disabled.
-- Redis holds a short replay coordination lock. MongoDB unique indexes enforce one audit per delivery and one receiver receipt per correlation ID. Redis is coordination, never the durable source of truth.
-- Each fixture allows one retained attempt, including failure or uncertain acknowledgement. This deliberate limit avoids accidental duplicate delivery. A process crash after approval can leave a pending audit; inspect it rather than replaying automatically.
+1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey).
+2. Run `cp .env.example .env` and set `GEMINI_API_KEY=<your key>` in `.env`. Exporting `GEMINI_API_KEY` in your shell also works.
+3. Restart `npm run dev`. `GET http://127.0.0.1:8011/api/config` should report `"geminiAvailable": true`.
+4. In the UI, run diagnostics, choose **Gemini** under *Investigator* and request the investigation.
 
-See [frozen evaluation gates](docs/evaluation.md), [release review](docs/release-review.md), [third-party attribution](docs/third-party.md), [architecture and threat boundaries](docs/architecture.md) and [actual verification](docs/verification.md). This is a trusted-machine portfolio demo with no accounts, production credentials, arbitrary destinations or background workers. The optional live investigator sends only retained synthetic diagnostic findings to the fixed Gemini API endpoint.
+The model is fixed to `gemini-3.5-flash-lite`. The key stays on the server and is never sent to the browser, stored or logged. Only the three synthetic diagnostic findings are sent to Google's API. Each delivery gets one Gemini attempt; a failed attempt stays visible and is not retried. **Billing, quota and data-use terms are governed by your own Google project.** The app does not check them, so review your plan before you enable the key.
 
-Storage namespace `webhook_clinic_v2` identifies the revised capture schema, not a product release. Earlier `webhook_clinic` deliveries and audits are preserved untouched. No migration silently rewrites immutable evidence.
+## Tests
+
+```sh
+npm test                  # offline unit/domain/provider-contract tests; no network calls
+npm run build             # strict type check and production UI bundle
+npm run evaluate          # rescore the recorded Gemini baseline offline; no inference
+npm run check:secrets     # pattern scan of tracked text and the frontend bundle
+npm run test:integration  # needs the app and databases running; writes an audit
+npm run test:browser      # Playwright end-to-end workflow and axe scan (npx playwright install chromium)
+npm run test:scenarios    # app stopped first; briefly stops this project's MongoDB/Redis
+npm run licenses          # offline dependency license inventory
+```
+
+CI runs all of these except `licenses` on every pull request, with Gemini disabled.
+
+## Limitations
+
+- Portfolio demo for a trusted local machine. There are no accounts, no arbitrary webhook ingestion, no production destinations and no cloud deployment.
+- Diagnostics cover three known synthetic failure types; the redactor is built for these fixtures, not for arbitrary data.
+- Gemini was live-tested on 3 synthetic cases only, with `gemini-3.5-flash-lite` only ([record](docs/live-validation.md)). Broader model quality is unverified, and no other provider is supported.
+- No distributed exactly-once guarantee. A crash or timeout leaves a pending or uncertain audit, which the app shows rather than retrying.
+
+## Troubleshooting
+
+- **"Mutations require the local Clinic UI origin."**: open `http://127.0.0.1:<CLINIC_UI_PORT>` exactly (not `localhost` and not another port).
+- **Port already in use / `strictPort` error**: set the `CLINIC_*_PORT` overrides shown above. Do not stop other applications.
+- **API exits with a MongoDB or Redis connection error**: run `docker compose ps`, and if needed `docker compose up -d --wait`. Check that `CLINIC_MONGO_PORT`/`CLINIC_REDIS_PORT` match in `.env`.
+- **Gemini option disabled**: `GEMINI_API_KEY` is empty or not visible to the server. Restart after editing `.env`.
+- **Replay button gone / nothing happens on a second replay**: by design, one attempt per fixture. The audit is shown instead.
+- **Start over**: `docker compose down -v` deletes this project's database volume. The fixtures are re-seeded on the next start.
+
+## Docs
+
+- [Architecture](docs/architecture.md)
+- [Threat model](docs/threat-model.md)
+- [Provider and evaluation boundaries](docs/provider-evaluation.md)
+- [Evaluation gates](docs/evaluation.md)
+- [Live validation record](docs/live-validation.md)
+- [Verification record](docs/verification.md)
+- [Release review](docs/release-review.md)
+- [Third-party attribution](docs/third-party.md)

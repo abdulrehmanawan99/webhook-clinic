@@ -52,7 +52,7 @@ security assessment.
 Versioned labels, gates, result export, scoring/failure examples and model
 variability limits are in [evaluation](evaluation.md). The three prior live calls
 are a synthetic development compatibility baseline. Broader/unseen-case quality
-and a second provider remain unverified. No authorized second provider exists.
+and a second provider remain unverified. Only one provider (Gemini) is implemented.
 Resource/queue measurements and latency percentiles are not established; no such
 performance claims are made.
 
@@ -66,8 +66,8 @@ separate review of those assumptions.
 
 Use the exact `127.0.0.1` UI origin. Other origins are deliberately rejected.
 If the app cannot start, inspect the dedicated ports in README and check MongoDB/
-Redis health; do not stop unknown processes or delete volumes. The server does
-not automatically load `.env`. Fixture mode needs no provider key. A failed or
+Redis health; do not stop unknown processes or delete volumes. The server loads
+`.env` if present; exported variables take precedence. Fixture mode needs no provider key. A failed or
 pending provider/replay attempt remains retained without an automatic retry;
 refreshing does not reset it. Never reuse imported live credentials.
 
