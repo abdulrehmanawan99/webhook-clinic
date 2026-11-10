@@ -57,7 +57,6 @@ snapshot and receive a new version rather than silently changing these labels.
 Live invalid-output behavior was not observed; rejection safety has mocked tests.
 The baseline predates the deadline-evidence correction and retains its original
 quotes. It does not prove a subsequent prompt/evidence version against live Gemini.
-No successful call should be repeated merely to refresh the score. Broader or
-unseen-case model quality and a second provider remain unverified under the
-current exact-model-only authorization. No latency percentile, throughput,
+Broader or unseen-case model quality remains unverified, and only
+`gemini-3.5-flash-lite` is supported. No latency percentile, throughput,
 resource, queue-capacity or general performance claim is made from three calls.

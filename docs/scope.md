@@ -14,8 +14,8 @@ Dense monochrome event console with request/response inspectors and signal color
 
 Keep the implementation cohesive and local. No accounts, cloud hosting, production
 integrations, or payment infrastructure. Fixture mode must be explicit and limited
-to known sample data. Real inference remains unvalidated until a provider is chosen
-and authorized. Preserve essential validation and safe execution boundaries.
+to known sample data. Optional Gemini inference only selects already computed
+evidence. Preserve essential validation and safe execution boundaries.
 
 ## Acceptance
 
