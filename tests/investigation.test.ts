@@ -6,6 +6,7 @@ import {
   geminiInvestigation,
   groundSelection,
   geminiModel,
+  geminiConfigured,
 } from "../server/investigation.js";
 const findings = diagnose(
   fixtureSnapshot(
@@ -122,5 +123,19 @@ test("Gemini fails closed without retry on refusal, truncation, oversized output
       }),
     );
     assert.equal(calls, 1);
+  }
+});
+
+test("a nonempty server key alone enables Gemini; the model stays fixed", () => {
+  const saved = process.env.GEMINI_API_KEY;
+  try {
+    process.env.GEMINI_API_KEY = "";
+    assert.equal(geminiConfigured(), false);
+    process.env.GEMINI_API_KEY = "synthetic-test-value";
+    assert.equal(geminiConfigured(), true);
+    assert.equal(geminiModel, "gemini-3.5-flash-lite");
+  } finally {
+    if (saved === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = saved;
   }
 });
