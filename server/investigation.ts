@@ -75,10 +75,7 @@ export function fixtureInvestigation(findings: Finding[]): Investigation {
   );
 }
 export function geminiConfigured() {
-  return Boolean(
-    process.env.GEMINI_API_KEY &&
-    process.env.GEMINI_FREE_TIER_CONFIRMED === "true",
-  );
+  return Boolean(process.env.GEMINI_API_KEY);
 }
 async function boundedJson(response: Response, maxBytes = 32768) {
   if (!response.body) throw new Error("Empty provider response");
