@@ -102,7 +102,8 @@ CI runs all of these except `licenses` on every pull request, with Gemini disabl
 
 ## Docs
 
-- [Architecture](docs/architecture.md)
+- [Architecture, diagrams and decisions](docs/architecture.md)
+- [Release notes](docs/release-notes.md)
 - [Threat model](docs/threat-model.md)
 - [Provider and evaluation boundaries](docs/provider-evaluation.md)
 - [Evaluation gates](docs/evaluation.md)
