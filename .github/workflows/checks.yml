@@ -24,7 +24,7 @@ jobs:
       - run: npm run evaluate
       - run: npm run check:secrets
       - run: npm audit --audit-level=high
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium || (echo 'apt mirror unavailable; using runner image libraries' && npx playwright install chromium)
       - name: Real local workflow and failure scenarios
         env:
           GEMINI_API_KEY: ""
