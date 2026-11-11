@@ -13,6 +13,7 @@ When a webhook delivery fails, a backend developer has to work out why (bad sign
 - Three deterministic diagnostics (signature, HTTP status, deadline), each citing its source evidence.
 - Optional evidence investigation: a no-key fixture selector, or Gemini (`gemini-3.5-flash-lite`) with your own key. The model can only pick allowlisted checks and quote existing evidence; it cannot replay or choose a destination.
 - Approved replay: a newly signed payload goes only to `127.0.0.1:<receiver port>/receive`. Redirects and automatic retries are disabled. Redis coordinates and MongoDB unique indexes ensure one retained audit per fixture.
+- A timing waterfall for each delivery: the captured request (and any local reproduction) against its deadline, with the HTTP status.
 - Keyboard-accessible, responsive UI with a clear fixture-mode label.
 
 ## Screenshots
@@ -21,7 +22,9 @@ When a webhook delivery fails, a backend developer has to work out why (bad sign
 |---|---|
 | ![Desktop inspection desk after an approved replay](docs/screenshots/desktop.png) | ![Mobile layout of the same workflow](docs/screenshots/mobile.png) |
 
-These screenshots come from a fresh clone that ran with port overrides, so the receiver is shown on port 9111.
+![Timing waterfall for the timeout fixture: 154 ms against a 150 ms deadline](docs/screenshots/timing-waterfall.png)
+
+The two full-page screenshots come from a fresh clone that ran with port overrides, so the receiver is shown on port 9111.
 
 ## Quick start (fixture mode, no key)
 
@@ -102,7 +105,8 @@ CI runs all of these except `licenses` on every pull request, with Gemini disabl
 
 ## Docs
 
-- [Architecture](docs/architecture.md)
+- [Architecture, diagrams and decisions](docs/architecture.md)
+- [Release notes](docs/release-notes.md)
 - [Threat model](docs/threat-model.md)
 - [Provider and evaluation boundaries](docs/provider-evaluation.md)
 - [Evaluation gates](docs/evaluation.md)
