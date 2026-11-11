@@ -38,6 +38,56 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   if (!r.ok) throw new Error(data.error ?? "Request failed.");
   return data;
 }
+function Waterfall({ detail }: { detail: Detail }) {
+  const budget = detail.delivery.budgetMs;
+  const rows = [
+    { label: "Captured delivery", d: detail.delivery },
+    ...(detail.reproduction
+      ? [{ label: "Local reproduction", d: detail.reproduction.observation }]
+      : []),
+  ];
+  const scale = Math.max(budget, ...rows.map((r) => r.d.durationMs)) * 1.15;
+  const pct = (ms: number) => `${Math.min(100, (ms / scale) * 100)}%`;
+  return (
+    <figure className="waterfall" aria-label="Request timing waterfall">
+      <figcaption className="eyebrow">
+        TIMING · deadline {budget} ms
+      </figcaption>
+      <ol>
+        {rows.map((r) => {
+          const over = r.d.durationMs > budget || r.d.deadlineReached === true;
+          return (
+            <li key={r.label}>
+              <span className="wf-label">{r.label}</span>
+              <span className="wf-track" aria-hidden="true">
+                <span
+                  className={"wf-bar " + (over ? "fail" : "pass")}
+                  style={{ width: pct(r.d.durationMs) }}
+                />
+                <span className="wf-budget" style={{ left: pct(budget) }} />
+              </span>
+              <span className="wf-value">
+                <span className={over ? "fail" : "pass"}>
+                  {r.d.durationMs} ms{over ? " · over deadline" : ""}
+                </span>{" "}
+                ·{" "}
+                <span
+                  className={
+                    r.d.response.status !== null && r.d.response.status < 400
+                      ? "pass"
+                      : "fail"
+                  }
+                >
+                  HTTP {r.d.response.status ?? "none"}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </figure>
+  );
+}
 function App() {
   const generation = useRef(0);
   const [items, setItems] = useState<Delivery[]>([]),
@@ -256,6 +306,7 @@ function App() {
               >
                 {JSON.stringify(detail.delivery[tab], null, 2)}
               </pre>
+              <Waterfall detail={detail} />
               <section className="diagnostic">
                 <div className="sectionhead">
                   <div>

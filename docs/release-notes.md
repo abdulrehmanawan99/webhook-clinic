@@ -2,6 +2,9 @@
 
 ## 11 November 2026: documentation
 
+- Added a timing waterfall to the delivery view. It shows the captured request and any
+  local reproduction against the deadline, with the HTTP status. axe found no WCAG A/AA
+  violations on desktop or mobile.
 - Added an architecture decisions table to the [architecture](architecture.md) page.
 
 ## v1 (10 November 2026): ready for outside readers
